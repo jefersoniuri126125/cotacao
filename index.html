@@ -318,17 +318,17 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 const SUPABASE_URL = 'https://frgmltievxuyaripeoge.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyZ21sdGlldnh1eWFyaXBlb2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyMjI2MjMsImV4cCI6MjA5OTc5ODYyM30.cx20BxhTR4mlFShxpyeRDqb86ZXlbBBUYvdhRkSMaFM';
 
-let supabase = null;
+let sb = null;
 try{
   if(!window.supabase) throw new Error('biblioteca @supabase/supabase-js não carregou (CDN bloqueado ou sem internet)');
   if(SUPABASE_URL.includes('SEU-PROJETO') || SUPABASE_ANON_KEY.includes('SUA-ANON-KEY')) throw new Error('preencha SUPABASE_URL e SUPABASE_ANON_KEY no início do script');
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }catch(e){
   console.error('Falha ao iniciar Supabase:', e);
 }
 
 function bancoIndisponivel(){
-  if(supabase) return false;
+  if(sb) return false;
   alert('O banco de dados não está configurado corretamente. Verifique SUPABASE_URL, SUPABASE_ANON_KEY e a conexão com a internet no início do script.');
   return true;
 }
@@ -363,7 +363,7 @@ async function carregarDados(){
 }
 
 async function carregarCaixas(){
-  const { data, error } = await supabase.from('caixas').select('*').order('nome');
+  const { data, error } = await sb.from('caixas').select('*').order('nome');
   if(error) throw error;
   caixas = (data||[]).map(c=>({
     id: c.id, nome: c.nome, comprimento: c.comprimento, largura: c.largura, altura: c.altura,
@@ -372,7 +372,7 @@ async function carregarCaixas(){
 }
 
 async function carregarItens(){
-  const { data, error } = await supabase.from('itens').select('*').order('nome');
+  const { data, error } = await sb.from('itens').select('*').order('nome');
   if(error) throw error;
   itens = (data||[]).map(i=>({
     id: i.id, codigo: i.codigo || '—', nome: i.nome, unidade: i.unidade || '',
@@ -382,7 +382,7 @@ async function carregarItens(){
 }
 
 async function carregarHistorico(){
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('historico')
     .select(`
       id, cliente, pedido, total_volumes, created_at,
@@ -426,7 +426,7 @@ async function salvarCaixa(){
   const a = parseFloat(document.getElementById('cxA').value);
   const peso = parseFloat(document.getElementById('cxPeso').value);
   if(!nome || !c || !l || !a){ alert('Preencha nome e as três dimensões da caixa.'); return; }
-  const { error } = await supabase.from('caixas').insert({
+  const { error } = await sb.from('caixas').insert({
     nome, comprimento:c, largura:l, altura:a, peso_max: isNaN(peso)?null:peso
   });
   if(error){ alert('Erro ao salvar caixa: '+error.message); return; }
@@ -436,7 +436,7 @@ async function salvarCaixa(){
 }
 async function excluirCaixa(id){
   if(bancoIndisponivel()) return;
-  const { error } = await supabase.from('caixas').delete().eq('id', id);
+  const { error } = await sb.from('caixas').delete().eq('id', id);
   if(error){ alert('Erro ao excluir caixa: '+error.message); return; }
   await carregarCaixas();
   renderCaixas();
@@ -466,7 +466,7 @@ async function salvarItem(){
   const a = parseFloat(document.getElementById('itA').value);
   const peso = parseFloat(document.getElementById('itPeso').value);
   if(!nome || !c || !l || !a){ alert('Preencha nome e as três dimensões do item.'); return; }
-  const { error } = await supabase.from('itens').insert({
+  const { error } = await sb.from('itens').insert({
     codigo: codigo || null, nome, comprimento:c, largura:l, altura:a, peso: isNaN(peso)?0:peso
   });
   if(error){ alert('Erro ao salvar item: '+error.message); return; }
@@ -476,7 +476,7 @@ async function salvarItem(){
 }
 async function excluirItem(id){
   if(bancoIndisponivel()) return;
-  const { error } = await supabase.from('itens').delete().eq('id', id);
+  const { error } = await sb.from('itens').delete().eq('id', id);
   if(error){ alert('Erro ao excluir item: '+error.message); return; }
   await carregarItens();
   renderItens(); renderSelectItens();
@@ -571,7 +571,7 @@ async function importarItensXlsx(event){
       nome: n.nome, unidade: n.unidade || null, caixa_padrao: n.caixaPadrao || null,
       comprimento: n.comprimento, largura: n.largura, altura: n.altura, peso: n.peso
     }));
-    const { error } = await supabase.from('itens').insert(linhasParaInserir);
+    const { error } = await sb.from('itens').insert(linhasParaInserir);
     if(error){ msgEl.textContent = 'Erro ao salvar no banco: '+error.message; return; }
     await carregarItens();
     renderItens(); renderSelectItens();
@@ -658,7 +658,7 @@ async function importarItens(){
   const texto = document.getElementById('importItensArea').value;
   const novos = parseLinhasItens(texto);
   if(novos.length===0){ document.getElementById('importMsg').textContent = 'Nenhuma linha válida encontrada.'; return; }
-  const { error } = await supabase.from('itens').insert(paraLinhasSupabase(novos));
+  const { error } = await sb.from('itens').insert(paraLinhasSupabase(novos));
   if(error){ document.getElementById('importMsg').textContent = 'Erro ao salvar no banco: '+error.message; return; }
   document.getElementById('importItensArea').value='';
   document.getElementById('importMsg').textContent = novos.length+' item(ns) importado(s).';
@@ -673,7 +673,7 @@ function importarArquivoItens(event){
   reader.onload = async (e) => {
     const novos = parseLinhasItens(e.target.result);
     if(novos.length===0){ document.getElementById('importMsg').textContent = 'Nenhuma linha válida encontrada no arquivo.'; return; }
-    const { error } = await supabase.from('itens').insert(paraLinhasSupabase(novos));
+    const { error } = await sb.from('itens').insert(paraLinhasSupabase(novos));
     if(error){ document.getElementById('importMsg').textContent = 'Erro ao salvar no banco: '+error.message; return; }
     document.getElementById('importMsg').textContent = novos.length+' item(ns) importado(s) do arquivo.';
     await carregarItens();
@@ -813,7 +813,7 @@ async function salvarCalculoNoHistorico(caixasAbertas, semCaixa){
 
   try{
     // 1) cria o registro principal do histórico
-    const { data: hist, error: histErr } = await supabase
+    const { data: hist, error: histErr } = await sb
       .from('historico')
       .insert({ cliente: cliente || null, pedido: pedido || null, total_volumes: caixasAbertas.length })
       .select()
@@ -823,7 +823,7 @@ async function salvarCalculoNoHistorico(caixasAbertas, semCaixa){
 
     // 2) itens da nota
     if(itensResumo.length>0){
-      const { error } = await supabase.from('historico_itens').insert(
+      const { error } = await sb.from('historico_itens').insert(
         itensResumo.map(i=>({ historico_id: historicoId, ...i }))
       );
       if(error) throw error;
@@ -831,7 +831,7 @@ async function salvarCalculoNoHistorico(caixasAbertas, semCaixa){
 
     // 3) itens sem caixa
     if(semCaixaLinhas.length>0){
-      const { error } = await supabase.from('historico_sem_caixa').insert(
+      const { error } = await sb.from('historico_sem_caixa').insert(
         semCaixaLinhas.map(s=>({ historico_id: historicoId, ...s }))
       );
       if(error) throw error;
@@ -840,7 +840,7 @@ async function salvarCalculoNoHistorico(caixasAbertas, semCaixa){
     // 4) caixas usadas + conteúdo de cada uma
     for(let idx=0; idx<caixasAbertas.length; idx++){
       const ab = caixasAbertas[idx];
-      const { data: caixaRow, error: caixaErr } = await supabase
+      const { data: caixaRow, error: caixaErr } = await sb
         .from('historico_caixas')
         .insert({
           historico_id: historicoId, ordem: idx+1, caixa_nome: ab.caixa.nome,
@@ -853,7 +853,7 @@ async function salvarCalculoNoHistorico(caixasAbertas, semCaixa){
       const conteudoLinhas = [];
       ab.conteudo.forEach(({item,qtd})=> conteudoLinhas.push({ historico_caixa_id: caixaRow.id, item_nome: item.nome, quantidade: qtd }));
       if(conteudoLinhas.length>0){
-        const { error } = await supabase.from('historico_caixas_itens').insert(conteudoLinhas);
+        const { error } = await sb.from('historico_caixas_itens').insert(conteudoLinhas);
         if(error) throw error;
       }
     }
