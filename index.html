@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel de Expedição — Volumes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --kraft: #E7DAC0;
+    --kraft-deep: #D9C7A2;
+    --kraft-dark: #C7B084;
+    --ink: #29241C;
+    --ink-soft: #5B5344;
+    --orange: #D2571E;
+    --orange-deep: #B4451A;
+    --green: #4B6B3A;
+    --red: #A63A2C;
+    --paper: #F3ECDD;
+    --line: #A89876;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(255,255,255,0.25), transparent 40%),
+      var(--kraft);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:960px;margin:0 auto;}
+
+  header.top{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:14px;margin-bottom:22px;flex-wrap:wrap;gap:10px;
+  }
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;
+    color:var(--orange-deep);text-transform:uppercase;margin:0 0 4px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:30px;margin:0;
+    letter-spacing:.01em;text-transform:uppercase;
+  }
+  .stamp{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);
+    border:2px solid var(--ink-soft);border-radius:4px;padding:5px 10px;
+    transform:rotate(-2deg);white-space:nowrap;
+  }
+
+  nav.tabs{display:flex;gap:6px;margin-bottom:20px;}
+  nav.tabs button{
+    font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:.04em;text-transform:uppercase;
+    background:var(--kraft-deep);border:2px solid var(--ink);border-bottom:none;
+    padding:10px 18px 12px;cursor:pointer;color:var(--ink-soft);
+    border-radius:8px 8px 0 0;position:relative;top:2px;
+  }
+  nav.tabs button.active{background:var(--paper);color:var(--ink);top:0;font-weight:600;}
+  section.panel{
+    background:var(--paper);border:2px solid var(--ink);border-radius:0 8px 8px 8px;
+    padding:26px;box-shadow:5px 5px 0 rgba(41,36,28,0.12);
+  }
+  .hidden{display:none !important;}
+
+  h2{font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:19px;margin:0 0 4px;letter-spacing:.02em;}
+  .sub{color:var(--ink-soft);font-size:13.5px;margin:0 0 20px;line-height:1.5;}
+
+  .form-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;align-items:end;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;}
+  .field input, .field select{
+    font-family:'IBM Plex Mono',monospace;font-size:14px;padding:8px 10px;
+    border:1.5px solid var(--line);border-radius:5px;background:#fff;color:var(--ink);
+    min-width:70px;
+  }
+  .field.grow input{min-width:180px;}
+  .field.qty input{width:70px;}
+
+  button.btn{
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;font-size:13px;
+    background:var(--orange);color:#fff;border:none;padding:10px 18px;border-radius:6px;
+    cursor:pointer;font-weight:600;transition:background .15s;
+  }
+  button.btn:hover{background:var(--orange-deep);}
+  button.btn.secondary{background:transparent;color:var(--ink);border:1.5px solid var(--ink);}
+  button.btn.secondary:hover{background:var(--ink);color:var(--paper);}
+  button.btn.danger{background:transparent;color:var(--red);border:1.5px solid var(--red);padding:6px 10px;font-size:11px;}
+  button.btn.danger:hover{background:var(--red);color:#fff;}
+  button.btn.small{padding:6px 12px;font-size:11px;}
+
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13.5px;}
+  th{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-soft);text-align:left;padding:7px 8px;border-bottom:2px solid var(--ink);
+  }
+  td{padding:8px;border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;}
+  tr:last-child td{border-bottom:none;}
+  .empty-msg{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft);
+    padding:22px 10px;text-align:center;border:1.5px dashed var(--line);border-radius:6px;margin-top:10px;
+  }
+
+  .divider{border:none;border-top:1.5px dashed var(--line);margin:22px 0;}
+
+  textarea{
+    width:100%;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:10px;
+    border:1.5px solid var(--line);border-radius:6px;min-height:90px;background:#fff;color:var(--ink);
+  }
+  .import-box{background:var(--kraft);border:1.5px solid var(--line);border-radius:8px;padding:16px;margin-bottom:20px;}
+  .import-box .hint{font-size:11.5px;color:var(--ink-soft);margin:6px 0 10px;font-family:'IBM Plex Mono',monospace;}
+
+  .fatura-list{margin:14px 0;}
+  .fatura-item-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:8px 10px;border:1.5px solid var(--line);border-radius:6px;margin-bottom:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;background:#fff;
+  }
+
+  .result-summary{
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.02em;
+    font-size:15px;background:var(--kraft);border:2px solid var(--ink);border-radius:8px;
+    padding:14px 18px;margin:18px 0;
+  }
+  .result-summary b{color:var(--orange-deep);font-size:17px;}
+
+  .tag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;}
+  .tag{
+    position:relative;background:var(--paper);border:2px dashed var(--ink-soft);border-radius:4px;
+    padding:16px 16px 14px;transform:rotate(-0.6deg);
+  }
+  .tag:nth-child(even){transform:rotate(0.6deg);}
+  .tag::before{
+    content:'';position:absolute;top:-9px;left:16px;width:16px;height:16px;
+    background:var(--kraft);border:2px solid var(--ink-soft);border-radius:50%;
+  }
+  .tag .tag-title{font-family:'Oswald',sans-serif;text-transform:uppercase;font-weight:600;font-size:15px;margin-bottom:2px;}
+  .tag .tag-dims{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);margin-bottom:10px;}
+  .tag ul{margin:0;padding:0;list-style:none;}
+  .tag li{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:4px 0;
+    border-top:1px dashed var(--line);display:flex;justify-content:space-between;
+  }
+  .tag li:first-child{border-top:none;}
+  .fill-bar{height:5px;background:var(--kraft-dark);border-radius:3px;margin-top:10px;overflow:hidden;}
+  .fill-bar div{height:100%;background:var(--green);}
+
+  .alert{
+    background:#F6E4DC;border:1.5px solid var(--red);color:var(--red);border-radius:6px;
+    padding:12px 14px;font-size:13px;margin:14px 0;font-family:'IBM Plex Mono',monospace;
+  }
+  .actions-cell{display:flex;gap:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <p class="brand-eyebrow">Controle de expedição · pré-faturamento</p>
+      <h1>Previsão de volumes</h1>
+    </div>
+    <div class="stamp" id="statusStamp">carregando dados…</div>
+    <div class="stamp" style="background:var(--kraft-deep);border-color:var(--orange-deep);color:var(--orange-deep);transform:rotate(1.5deg);">dados compartilhados com o time</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="caixas">Caixas</button>
+    <button class="tab-btn" data-tab="itens">Itens</button>
+    <button class="tab-btn" data-tab="fatura">Faturamento</button>
+    <button class="tab-btn" data-tab="historico">Histórico</button>
+  </nav>
+
+  <!-- ===================== TAB CAIXAS ===================== -->
+  <section class="panel" id="tab-caixas">
+    <h2>Modelos de caixa</h2>
+    <p class="sub">Cadastre os modelos de caixa usados na expedição. Se um modelo mudar de tamanho, edite aqui — a previsão de volumes passa a usar a medida nova automaticamente.</p>
+
+    <div class="form-row">
+      <div class="field grow"><label>Nome do modelo</label><input id="cxNome" placeholder="ex: Caixa Grande"></div>
+      <div class="field"><label>Comp. (cm)</label><input id="cxC" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Larg. (cm)</label><input id="cxL" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Alt. (cm)</label><input id="cxA" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Peso máx (kg)</label><input id="cxPeso" type="number" min="0" step="0.1" placeholder="opcional"></div>
+      <div class="field"><button class="btn" onclick="salvarCaixa()">+ Adicionar</button></div>
+    </div>
+
+    <table id="tblCaixas">
+      <thead><tr><th>Modelo</th><th>Dimensões (C×L×A cm)</th><th>Peso máx</th><th>Volume</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty-msg hidden" id="caixasVazio">Nenhuma caixa cadastrada ainda. Adicione os modelos usados na expedição acima.</div>
+  </section>
+
+  <!-- ===================== TAB ITENS ===================== -->
+  <section class="panel hidden" id="tab-itens">
+    <h2>Itens e dimensões</h2>
+    <p class="sub">Cadastre os itens vendidos com suas dimensões, ou importe todos de uma vez colando os dados da planilha.</p>
+
+    <div class="import-box">
+      <strong style="font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:13px;">Importar planilha Excel (.xlsx)</strong>
+      <p class="hint">Selecione o arquivo .xlsx com as colunas: <b>Item, Un, Descrição, Caixa, Largura(cm), Altura(cm), Comprimento(cm)</b>. Os nomes das colunas podem estar em qualquer ordem, o sistema identifica automaticamente pelo cabeçalho.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label class="btn" style="cursor:pointer;">
+          Selecionar arquivo .xlsx
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarItensXlsx(event)">
+        </label>
+        <span id="importXlsxMsg" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);"></span>
+      </div>
+    </div>
+
+    <div class="import-box">
+      <strong style="font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:13px;">Ou colar manualmente</strong>
+      <p class="hint">Cole abaixo linhas no formato: <b>código, nome, comprimento, largura, altura, peso(opcional)</b> — separadas por vírgula ou tab. A primeira linha pode ser cabeçalho, será ignorada automaticamente.</p>
+      <textarea id="importItensArea" placeholder="COD001, Parafuso Sextavado M8, 5, 5, 2, 0.05&#10;COD002, Suporte Metálico, 20, 15, 10, 0.8"></textarea>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+        <button class="btn" onclick="importarItens()">Importar linhas</button>
+        <label class="btn secondary small" style="cursor:pointer;">
+          Importar arquivo .csv
+          <input type="file" accept=".csv,.txt" style="display:none" onchange="importarArquivoItens(event)">
+        </label>
+        <span id="importMsg" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);"></span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field"><label>Código</label><input id="itCodigo" placeholder="opcional"></div>
+      <div class="field grow"><label>Nome do item</label><input id="itNome"></div>
+      <div class="field"><label>Comp. (cm)</label><input id="itC" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Larg. (cm)</label><input id="itL" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Alt. (cm)</label><input id="itA" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Peso (kg)</label><input id="itPeso" type="number" min="0" step="0.1" placeholder="opcional"></div>
+      <div class="field"><button class="btn" onclick="salvarItem()">+ Adicionar</button></div>
+    </div>
+
+    <table id="tblItens">
+      <thead><tr><th>Código</th><th>Item</th><th>Un.</th><th>Caixa (planilha)</th><th>Dimensões (C×L×A cm)</th><th>Peso</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty-msg hidden" id="itensVazio">Nenhum item cadastrado ainda.</div>
+  </section>
+
+  <!-- ===================== TAB FATURA ===================== -->
+  <section class="panel hidden" id="tab-fatura">
+    <h2>Simular faturamento</h2>
+    <p class="sub">Monte a lista de itens e quantidades da nota a ser emitida. O sistema calcula quantos volumes serão necessários e em qual caixa embalar cada item, antes de você faturar.</p>
+
+    <div class="form-row">
+      <div class="field grow"><label>Cliente</label><input id="faturaCliente" placeholder="nome do cliente (opcional)"></div>
+      <div class="field grow"><label>Nº do pedido</label><input id="faturaPedido" placeholder="pedido cliente (opcional)"></div>
+    </div>
+
+    <div class="import-box">
+      <strong style="font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:13px;">Importar planilha da nota (.xlsx)</strong>
+      <p class="hint">Selecione o arquivo .xlsx com as colunas: <b>DEP, EMBARQUE, ITEM, DESCRIÇÃO, LOTE/SÉRIE, QT ALOCA, PEDIDO CLI, DATA VALIDADE</b>. O item é localizado pelo código (coluna ITEM) e, se não encontrar, pela descrição — os itens precisam já estar cadastrados na aba Itens.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label class="btn" style="cursor:pointer;">
+          Selecionar arquivo .xlsx
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarFaturaXlsx(event)">
+        </label>
+        <span id="importFaturaXlsxMsg" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);"></span>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field grow">
+        <label>Item</label>
+        <select id="faturaItemSelect"></select>
+      </div>
+      <div class="field qty"><label>Quantidade</label><input id="faturaQtd" type="number" min="1" value="1"></div>
+      <div class="field"><button class="btn" onclick="adicionarLinhaFatura()">+ Adicionar à nota</button></div>
+    </div>
+
+    <div class="fatura-list" id="faturaLista"></div>
+    <div class="empty-msg hidden" id="faturaVazia">Nenhum item adicionado à nota ainda.</div>
+
+    <hr class="divider">
+    <button class="btn" style="font-size:15px;padding:12px 26px;" onclick="calcularVolumes()">Calcular volumes desta nota</button>
+
+    <div id="resultadoArea"></div>
+  </section>
+
+  <!-- ===================== TAB HISTORICO ===================== -->
+  <section class="panel hidden" id="tab-historico">
+    <h2>Histórico de cálculos</h2>
+    <p class="sub">Toda vez que você calcula os volumes de uma nota, o registro fica salvo aqui — com cliente, pedido, itens e caixas usadas — para consulta posterior.</p>
+
+    <div class="form-row">
+      <div class="field grow" style="flex:1;">
+        <label>Pesquisar por cliente ou nº do pedido</label>
+        <input id="historicoBusca" placeholder="digite para filtrar…" oninput="renderHistorico()">
+      </div>
+    </div>
+
+    <div id="historicoLista"></div>
+    <div class="empty-msg hidden" id="historicoVazio">Nenhum registro encontrado.</div>
+  </section>
+
+</div>
+
+<script>
+// ---------- tabs (roda primeiro, independente do banco de dados) ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(p=>p.classList.add('hidden'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
+  });
+});
+
+// ---------- configuração do Supabase ----------
+// Preencha com os dados do seu projeto: Project Settings > API
+const SUPABASE_URL = 'https://frgmltievxuyaripeoge.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyZ21sdGlldnh1eWFyaXBlb2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyMjI2MjMsImV4cCI6MjA5OTc5ODYyM30.cx20BxhTR4mlFShxpyeRDqb86ZXlbBBUYvdhRkSMaFM';
+
+let supabase = null;
+try{
+  if(!window.supabase) throw new Error('biblioteca @supabase/supabase-js não carregou (CDN bloqueado ou sem internet)');
+  if(SUPABASE_URL.includes('SEU-PROJETO') || SUPABASE_ANON_KEY.includes('SUA-ANON-KEY')) throw new Error('preencha SUPABASE_URL e SUPABASE_ANON_KEY no início do script');
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}catch(e){
+  console.error('Falha ao iniciar Supabase:', e);
+}
+
+function bancoIndisponivel(){
+  if(supabase) return false;
+  alert('O banco de dados não está configurado corretamente. Verifique SUPABASE_URL, SUPABASE_ANON_KEY e a conexão com a internet no início do script.');
+  return true;
+}
+
+let caixas = [];
+let itens = [];
+let faturaAtual = []; // {itemId, quantidade}
+let historico = [];
+
+const FILL_FACTOR = 0.85; // margem de segurança do volume útil de cada caixa
+
+// ---------- carregamento de dados (Supabase) ----------
+async function carregarDados(){
+  document.getElementById('statusStamp').textContent = 'carregando dados…';
+  if(bancoIndisponivel()){
+    document.getElementById('statusStamp').textContent = 'banco não configurado';
+    renderCaixas(); renderItens(); renderSelectItens(); renderHistorico();
+    return;
+  }
+  try{
+    await Promise.all([ carregarCaixas(), carregarItens(), carregarHistorico() ]);
+    document.getElementById('statusStamp').textContent = caixas.length || itens.length ? 'dados carregados' : 'sem dados salvos ainda';
+  }catch(e){
+    console.error(e);
+    document.getElementById('statusStamp').textContent = 'erro ao conectar ao banco';
+    alert('Não foi possível conectar ao Supabase. Confira SUPABASE_URL e SUPABASE_ANON_KEY no início do script, e se as tabelas foram criadas.');
+  }
+  renderCaixas();
+  renderItens();
+  renderSelectItens();
+  renderHistorico();
+}
+
+async function carregarCaixas(){
+  const { data, error } = await supabase.from('caixas').select('*').order('nome');
+  if(error) throw error;
+  caixas = (data||[]).map(c=>({
+    id: c.id, nome: c.nome, comprimento: c.comprimento, largura: c.largura, altura: c.altura,
+    pesoMax: c.peso_max
+  }));
+}
+
+async function carregarItens(){
+  const { data, error } = await supabase.from('itens').select('*').order('nome');
+  if(error) throw error;
+  itens = (data||[]).map(i=>({
+    id: i.id, codigo: i.codigo || '—', nome: i.nome, unidade: i.unidade || '',
+    caixaPadrao: i.caixa_padrao || '', comprimento: i.comprimento, largura: i.largura,
+    altura: i.altura, peso: i.peso || 0
+  }));
+}
+
+async function carregarHistorico(){
+  const { data, error } = await supabase
+    .from('historico')
+    .select(`
+      id, cliente, pedido, total_volumes, created_at,
+      historico_itens ( item_codigo, item_nome, quantidade ),
+      historico_sem_caixa ( item_nome, quantidade ),
+      historico_caixas (
+        id, ordem, caixa_nome, comprimento, largura, altura,
+        historico_caixas_itens ( item_nome, quantidade )
+      )
+    `)
+    .order('created_at', { ascending:false });
+  if(error) throw error;
+
+  historico = (data||[]).map(r=>{
+    const caixasOrdenadas = [...(r.historico_caixas||[])].sort((a,b)=>a.ordem-b.ordem);
+    return {
+      id: r.id,
+      timestamp: new Date(r.created_at).getTime(),
+      cliente: r.cliente,
+      pedido: r.pedido,
+      totalVolumes: r.total_volumes,
+      itens: (r.historico_itens||[]).map(hi=>({codigo:hi.item_codigo, nome:hi.item_nome, quantidade:hi.quantidade})),
+      caixas: caixasOrdenadas.map(hc=>({
+        caixaNome: hc.caixa_nome,
+        dims: `${hc.comprimento}×${hc.largura}×${hc.altura}`,
+        conteudo: (hc.historico_caixas_itens||[]).map(ci=>({nome:ci.item_nome, qtd:ci.quantidade}))
+      })),
+      semCaixa: (r.historico_sem_caixa||[]).map(s=>({nome:s.item_nome, qtd:s.quantidade}))
+    };
+  });
+}
+
+// ---------- caixas CRUD ----------
+function volume(dims){ return dims[0]*dims[1]*dims[2]; }
+
+async function salvarCaixa(){
+  if(bancoIndisponivel()) return;
+  const nome = document.getElementById('cxNome').value.trim();
+  const c = parseFloat(document.getElementById('cxC').value);
+  const l = parseFloat(document.getElementById('cxL').value);
+  const a = parseFloat(document.getElementById('cxA').value);
+  const peso = parseFloat(document.getElementById('cxPeso').value);
+  if(!nome || !c || !l || !a){ alert('Preencha nome e as três dimensões da caixa.'); return; }
+  const { error } = await supabase.from('caixas').insert({
+    nome, comprimento:c, largura:l, altura:a, peso_max: isNaN(peso)?null:peso
+  });
+  if(error){ alert('Erro ao salvar caixa: '+error.message); return; }
+  ['cxNome','cxC','cxL','cxA','cxPeso'].forEach(id=>document.getElementById(id).value='');
+  await carregarCaixas();
+  renderCaixas();
+}
+async function excluirCaixa(id){
+  if(bancoIndisponivel()) return;
+  const { error } = await supabase.from('caixas').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir caixa: '+error.message); return; }
+  await carregarCaixas();
+  renderCaixas();
+}
+function renderCaixas(){
+  const tbody = document.querySelector('#tblCaixas tbody');
+  tbody.innerHTML = '';
+  document.getElementById('caixasVazio').classList.toggle('hidden', caixas.length>0);
+  caixas.forEach(c=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.nome}</td>
+      <td>${c.comprimento} × ${c.largura} × ${c.altura}</td>
+      <td>${c.pesoMax ? c.pesoMax+' kg' : '—'}</td>
+      <td>${(volume([c.comprimento,c.largura,c.altura])/1000).toFixed(1)} L</td>
+      <td class="actions-cell"><button class="btn danger" onclick="excluirCaixa('${c.id}')">Excluir</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- itens CRUD ----------
+async function salvarItem(){
+  if(bancoIndisponivel()) return;
+  const codigo = document.getElementById('itCodigo').value.trim();
+  const nome = document.getElementById('itNome').value.trim();
+  const c = parseFloat(document.getElementById('itC').value);
+  const l = parseFloat(document.getElementById('itL').value);
+  const a = parseFloat(document.getElementById('itA').value);
+  const peso = parseFloat(document.getElementById('itPeso').value);
+  if(!nome || !c || !l || !a){ alert('Preencha nome e as três dimensões do item.'); return; }
+  const { error } = await supabase.from('itens').insert({
+    codigo: codigo || null, nome, comprimento:c, largura:l, altura:a, peso: isNaN(peso)?0:peso
+  });
+  if(error){ alert('Erro ao salvar item: '+error.message); return; }
+  ['itCodigo','itNome','itC','itL','itA','itPeso'].forEach(id=>document.getElementById(id).value='');
+  await carregarItens();
+  renderItens(); renderSelectItens();
+}
+async function excluirItem(id){
+  if(bancoIndisponivel()) return;
+  const { error } = await supabase.from('itens').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir item: '+error.message); return; }
+  await carregarItens();
+  renderItens(); renderSelectItens();
+}
+function renderItens(){
+  const tbody = document.querySelector('#tblItens tbody');
+  tbody.innerHTML = '';
+  document.getElementById('itensVazio').classList.toggle('hidden', itens.length>0);
+  itens.forEach(i=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i.codigo}</td><td>${i.nome}</td>
+      <td>${i.unidade || '—'}</td>
+      <td>${i.caixaPadrao || '—'}</td>
+      <td>${i.comprimento} × ${i.largura} × ${i.altura}</td>
+      <td>${i.peso ? i.peso+' kg' : '—'}</td>
+      <td class="actions-cell"><button class="btn danger" onclick="excluirItem('${i.id}')">Excluir</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- helpers de planilha Excel ----------
+function normalizarCabecalho(h){
+  return h.toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+function paraNumero(v){
+  if(v===undefined || v===null || v==='') return NaN;
+  if(typeof v === 'number') return v;
+  return parseFloat(v.toString().replace(',','.'));
+}
+function lerPlanilha(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try{
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const linhas = XLSX.utils.sheet_to_json(ws, {defval:''});
+        resolve(linhas);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+function linhaParaMapaNormalizado(linha){
+  const mapa = {};
+  Object.keys(linha).forEach(chave=>{
+    mapa[normalizarCabecalho(chave)] = linha[chave];
+  });
+  return mapa;
+}
+
+// ---------- importação de itens via .xlsx ----------
+async function importarItensXlsx(event){
+  if(bancoIndisponivel()) return;
+  const file = event.target.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('importXlsxMsg');
+  msgEl.textContent = 'Lendo planilha…';
+  try{
+    const linhas = await lerPlanilha(file);
+    const novos = [];
+    let ignoradas = 0;
+    linhas.forEach(linha=>{
+      const m = linhaParaMapaNormalizado(linha);
+      const codigo = m['item'];
+      const nome = m['descricao'];
+      const unidade = m['un'];
+      const caixaPadrao = m['caixa'];
+      const largura = paraNumero(m['larguracm']);
+      const altura = paraNumero(m['alturacm']);
+      const comprimento = paraNumero(m['comprimentocm']);
+      if(!codigo && !nome){ return; }
+      if(isNaN(largura) || isNaN(altura) || isNaN(comprimento)){ ignoradas++; return; }
+      novos.push({
+        id: 'it_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        codigo: (codigo || '—').toString().trim(),
+        nome: (nome || codigo || 'Item').toString().trim(),
+        unidade: unidade ? unidade.toString().trim() : '',
+        caixaPadrao: caixaPadrao ? caixaPadrao.toString().trim() : '',
+        comprimento, largura, altura,
+        peso: 0
+      });
+    });
+    if(novos.length===0){
+      msgEl.textContent = 'Nenhuma linha válida encontrada. Confira se as colunas se chamam Item, Descrição, Largura(cm), Altura(cm), Comprimento(cm).';
+      return;
+    }
+    const linhasParaInserir = novos.map(n=>({
+      codigo: n.codigo === '—' ? null : n.codigo,
+      nome: n.nome, unidade: n.unidade || null, caixa_padrao: n.caixaPadrao || null,
+      comprimento: n.comprimento, largura: n.largura, altura: n.altura, peso: n.peso
+    }));
+    const { error } = await supabase.from('itens').insert(linhasParaInserir);
+    if(error){ msgEl.textContent = 'Erro ao salvar no banco: '+error.message; return; }
+    await carregarItens();
+    renderItens(); renderSelectItens();
+    msgEl.textContent = `${novos.length} item(ns) importado(s)${ignoradas ? ' · '+ignoradas+' linha(s) ignorada(s) por falta de dimensão' : ''}.`;
+  }catch(err){
+    msgEl.textContent = 'Não foi possível ler o arquivo. Confirme que é um .xlsx válido.';
+  }
+  event.target.value = '';
+}
+
+// ---------- importação da nota (.xlsx) na aba faturamento ----------
+async function importarFaturaXlsx(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('importFaturaXlsxMsg');
+  msgEl.textContent = 'Lendo planilha…';
+  try{
+    const linhas = await lerPlanilha(file);
+    let encontrados = 0;
+    const naoEncontrados = [];
+    let pedidoDetectado = '';
+    linhas.forEach(linha=>{
+      const m = linhaParaMapaNormalizado(linha);
+      const codigo = (m['item']||'').toString().trim();
+      const descricao = (m['descricao']||'').toString().trim();
+      const qtd = paraNumero(m['qtaloca']);
+      if(!pedidoDetectado && m['pedidocli']) pedidoDetectado = m['pedidocli'].toString().trim();
+      if(!codigo && !descricao) return;
+      if(isNaN(qtd) || qtd<=0) return;
+
+      let item = itens.find(i=> i.codigo && codigo && i.codigo.toLowerCase()===codigo.toLowerCase());
+      if(!item && descricao){
+        item = itens.find(i=> i.nome && i.nome.toLowerCase()===descricao.toLowerCase());
+      }
+      if(!item){
+        naoEncontrados.push(codigo || descricao);
+        return;
+      }
+      const existente = faturaAtual.find(f=>f.itemId===item.id);
+      if(existente){ existente.quantidade += qtd; } else { faturaAtual.push({itemId:item.id, quantidade:qtd}); }
+      encontrados++;
+    });
+    const pedidoInput = document.getElementById('faturaPedido');
+    if(pedidoInput && !pedidoInput.value && pedidoDetectado) pedidoInput.value = pedidoDetectado;
+    renderFaturaLista();
+    if(naoEncontrados.length>0){
+      const unicos = [...new Set(naoEncontrados)];
+      msgEl.textContent = `${encontrados} linha(s) importada(s). ${unicos.length} item(ns) não encontrados no cadastro: ${unicos.slice(0,6).join(', ')}${unicos.length>6?'…':''}`;
+    } else {
+      msgEl.textContent = `${encontrados} linha(s) importada(s) com sucesso.`;
+    }
+  }catch(err){
+    msgEl.textContent = 'Não foi possível ler o arquivo. Confirme que é um .xlsx válido.';
+  }
+  event.target.value = '';
+}
+
+// ---------- importação de itens ----------
+function parseLinhasItens(texto){
+  const linhas = texto.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  const novos = [];
+  linhas.forEach(linha=>{
+    const partes = linha.split(/,|\t/).map(p=>p.trim());
+    if(partes.length < 4) return;
+    const [codigo, nome, c, l, a, peso] = partes;
+    const cN = parseFloat((c||'').replace(',','.'));
+    const lN = parseFloat((l||'').replace(',','.'));
+    const aN = parseFloat((a||'').replace(',','.'));
+    const pN = parseFloat((peso||'').replace(',','.'));
+    if(isNaN(cN) || isNaN(lN) || isNaN(aN)) return; // provável linha de cabeçalho
+    novos.push({ id:'it_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+      codigo: codigo || '—', nome: nome || codigo || 'Item', comprimento:cN, largura:lN, altura:aN, peso: isNaN(pN)?0:pN });
+  });
+  return novos;
+}
+function paraLinhasSupabase(novos){
+  return novos.map(n=>({
+    codigo: n.codigo === '—' ? null : n.codigo,
+    nome: n.nome, comprimento: n.comprimento, largura: n.largura, altura: n.altura, peso: n.peso
+  }));
+}
+async function importarItens(){
+  if(bancoIndisponivel()) return;
+  const texto = document.getElementById('importItensArea').value;
+  const novos = parseLinhasItens(texto);
+  if(novos.length===0){ document.getElementById('importMsg').textContent = 'Nenhuma linha válida encontrada.'; return; }
+  const { error } = await supabase.from('itens').insert(paraLinhasSupabase(novos));
+  if(error){ document.getElementById('importMsg').textContent = 'Erro ao salvar no banco: '+error.message; return; }
+  document.getElementById('importItensArea').value='';
+  document.getElementById('importMsg').textContent = novos.length+' item(ns) importado(s).';
+  await carregarItens();
+  renderItens(); renderSelectItens();
+}
+function importarArquivoItens(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(bancoIndisponivel()) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const novos = parseLinhasItens(e.target.result);
+    if(novos.length===0){ document.getElementById('importMsg').textContent = 'Nenhuma linha válida encontrada no arquivo.'; return; }
+    const { error } = await supabase.from('itens').insert(paraLinhasSupabase(novos));
+    if(error){ document.getElementById('importMsg').textContent = 'Erro ao salvar no banco: '+error.message; return; }
+    document.getElementById('importMsg').textContent = novos.length+' item(ns) importado(s) do arquivo.';
+    await carregarItens();
+    renderItens(); renderSelectItens();
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ---------- fatura ----------
+function renderSelectItens(){
+  const sel = document.getElementById('faturaItemSelect');
+  sel.innerHTML = '';
+  if(itens.length===0){
+    sel.innerHTML = '<option value="">Cadastre itens primeiro</option>';
+    return;
+  }
+  itens.forEach(i=>{
+    const opt = document.createElement('option');
+    opt.value = i.id;
+    opt.textContent = `${i.nome} (${i.codigo})`;
+    sel.appendChild(opt);
+  });
+}
+function adicionarLinhaFatura(){
+  const itemId = document.getElementById('faturaItemSelect').value;
+  const qtd = parseInt(document.getElementById('faturaQtd').value);
+  if(!itemId || !qtd || qtd<1){ alert('Selecione um item e uma quantidade válida.'); return; }
+  const existente = faturaAtual.find(f=>f.itemId===itemId);
+  if(existente){ existente.quantidade += qtd; } else { faturaAtual.push({itemId, quantidade:qtd}); }
+  renderFaturaLista();
+  document.getElementById('faturaQtd').value = 1;
+}
+function removerLinhaFatura(itemId){
+  faturaAtual = faturaAtual.filter(f=>f.itemId!==itemId);
+  renderFaturaLista();
+}
+function renderFaturaLista(){
+  const div = document.getElementById('faturaLista');
+  div.innerHTML = '';
+  document.getElementById('faturaVazia').classList.toggle('hidden', faturaAtual.length>0);
+  faturaAtual.forEach(f=>{
+    const item = itens.find(i=>i.id===f.itemId);
+    if(!item) return;
+    const row = document.createElement('div');
+    row.className = 'fatura-item-row';
+    row.innerHTML = `<span>${item.nome} <span style="color:var(--ink-soft)">(${item.codigo})</span></span>
+      <span style="display:flex;align-items:center;gap:14px;">Qtd: ${f.quantidade}
+      <button class="btn danger" onclick="removerLinhaFatura('${f.itemId}')">Remover</button></span>`;
+    div.appendChild(row);
+  });
+}
+
+// ---------- algoritmo de empacotamento ----------
+function cabeNaCaixa(itemDims, boxDims){
+  const i = [...itemDims].sort((a,b)=>a-b);
+  const b = [...boxDims].sort((a,b)=>a-b);
+  return i[0]<=b[0] && i[1]<=b[1] && i[2]<=b[2];
+}
+
+function calcularVolumes(){
+  const resultadoArea = document.getElementById('resultadoArea');
+  resultadoArea.innerHTML = '';
+
+  if(faturaAtual.length===0){ alert('Adicione ao menos um item à nota.'); return; }
+  if(caixas.length===0){ alert('Cadastre ao menos um modelo de caixa antes de calcular.'); return; }
+
+  // expandir unidades
+  let unidades = [];
+  faturaAtual.forEach(f=>{
+    const item = itens.find(i=>i.id===f.itemId);
+    if(!item) return;
+    for(let q=0;q<f.quantidade;q++){ unidades.push(item); }
+  });
+
+  unidades.sort((a,b)=> volume([b.comprimento,b.largura,b.altura]) - volume([a.comprimento,a.largura,a.altura]));
+
+  let caixasAbertas = []; // {caixa, usedVolume, usedWeight, conteudo: Map itemId->{item,qtd}}
+  let semCaixa = [];
+
+  unidades.forEach(item=>{
+    const dims = [item.comprimento, item.largura, item.altura];
+    const vol = volume(dims);
+    const peso = item.peso || 0;
+
+    let candidatas = caixasAbertas.filter(ab=>{
+      const boxDims = [ab.caixa.comprimento, ab.caixa.largura, ab.caixa.altura];
+      const boxVol = volume(boxDims);
+      const cabeDim = cabeNaCaixa(dims, boxDims);
+      const cabeVol = (ab.usedVolume + vol) <= boxVol * FILL_FACTOR;
+      const cabePeso = !ab.caixa.pesoMax || (ab.usedWeight + peso) <= ab.caixa.pesoMax;
+      return cabeDim && cabeVol && cabePeso;
+    });
+
+    if(candidatas.length>0){
+      candidatas.sort((a,b)=>{
+        const restA = volume([a.caixa.comprimento,a.caixa.largura,a.caixa.altura]) * FILL_FACTOR - a.usedVolume;
+        const restB = volume([b.caixa.comprimento,b.caixa.largura,b.caixa.altura]) * FILL_FACTOR - b.usedVolume;
+        return restA - restB;
+      });
+      const escolhida = candidatas[0];
+      escolhida.usedVolume += vol;
+      escolhida.usedWeight += peso;
+      if(escolhida.conteudo.has(item.id)) escolhida.conteudo.get(item.id).qtd += 1;
+      else escolhida.conteudo.set(item.id, {item, qtd:1});
+    } else {
+      let opcoes = caixas.filter(c=>{
+        const cabeDim = cabeNaCaixa(dims, [c.comprimento,c.largura,c.altura]);
+        const cabePeso = !c.pesoMax || peso <= c.pesoMax;
+        return cabeDim && cabePeso;
+      });
+      opcoes.sort((a,b)=> volume([a.comprimento,a.largura,a.altura]) - volume([b.comprimento,b.largura,b.altura]));
+      if(opcoes.length===0){ semCaixa.push(item); return; }
+      const nova = { caixa: opcoes[0], usedVolume: vol, usedWeight: peso, conteudo: new Map() };
+      nova.conteudo.set(item.id, {item, qtd:1});
+      caixasAbertas.push(nova);
+    }
+  });
+
+  renderResultado(caixasAbertas, semCaixa);
+  salvarCalculoNoHistorico(caixasAbertas, semCaixa);
+}
+
+async function salvarCalculoNoHistorico(caixasAbertas, semCaixa){
+  if(bancoIndisponivel()){ return; }
+  const cliente = document.getElementById('faturaCliente').value.trim();
+  const pedido = document.getElementById('faturaPedido').value.trim();
+
+  const itensResumo = faturaAtual.map(f=>{
+    const item = itens.find(i=>i.id===f.itemId);
+    return item ? { item_id:item.id, item_codigo:item.codigo, item_nome:item.nome, quantidade:f.quantidade } : null;
+  }).filter(Boolean);
+
+  const semCaixaResumo = {};
+  semCaixa.forEach(i=>{ semCaixaResumo[i.nome] = (semCaixaResumo[i.nome]||0)+1; });
+  const semCaixaLinhas = Object.entries(semCaixaResumo).map(([item_nome,quantidade])=>({item_nome,quantidade}));
+
+  try{
+    // 1) cria o registro principal do histórico
+    const { data: hist, error: histErr } = await supabase
+      .from('historico')
+      .insert({ cliente: cliente || null, pedido: pedido || null, total_volumes: caixasAbertas.length })
+      .select()
+      .single();
+    if(histErr) throw histErr;
+    const historicoId = hist.id;
+
+    // 2) itens da nota
+    if(itensResumo.length>0){
+      const { error } = await supabase.from('historico_itens').insert(
+        itensResumo.map(i=>({ historico_id: historicoId, ...i }))
+      );
+      if(error) throw error;
+    }
+
+    // 3) itens sem caixa
+    if(semCaixaLinhas.length>0){
+      const { error } = await supabase.from('historico_sem_caixa').insert(
+        semCaixaLinhas.map(s=>({ historico_id: historicoId, ...s }))
+      );
+      if(error) throw error;
+    }
+
+    // 4) caixas usadas + conteúdo de cada uma
+    for(let idx=0; idx<caixasAbertas.length; idx++){
+      const ab = caixasAbertas[idx];
+      const { data: caixaRow, error: caixaErr } = await supabase
+        .from('historico_caixas')
+        .insert({
+          historico_id: historicoId, ordem: idx+1, caixa_nome: ab.caixa.nome,
+          comprimento: ab.caixa.comprimento, largura: ab.caixa.largura, altura: ab.caixa.altura
+        })
+        .select()
+        .single();
+      if(caixaErr) throw caixaErr;
+
+      const conteudoLinhas = [];
+      ab.conteudo.forEach(({item,qtd})=> conteudoLinhas.push({ historico_caixa_id: caixaRow.id, item_nome: item.nome, quantidade: qtd }));
+      if(conteudoLinhas.length>0){
+        const { error } = await supabase.from('historico_caixas_itens').insert(conteudoLinhas);
+        if(error) throw error;
+      }
+    }
+
+    await carregarHistorico();
+    renderHistorico();
+  }catch(e){
+    console.error(e);
+    alert('O cálculo foi exibido, mas houve um erro ao salvar no histórico: '+e.message);
+  }
+}
+
+function formatarData(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+}
+
+function renderHistorico(){
+  const lista = document.getElementById('historicoLista');
+  const vazio = document.getElementById('historicoVazio');
+  const busca = (document.getElementById('historicoBusca').value || '').trim().toLowerCase();
+
+  const filtrados = historico.filter(r=>{
+    if(!busca) return true;
+    return (r.cliente||'').toLowerCase().includes(busca) || (r.pedido||'').toLowerCase().includes(busca);
+  });
+
+  lista.innerHTML = '';
+  vazio.classList.toggle('hidden', filtrados.length>0);
+
+  filtrados.forEach(r=>{
+    const card = document.createElement('div');
+    card.className = 'tag';
+    card.style.transform = 'none';
+    card.style.marginBottom = '16px';
+    const itensHtml = r.itens.map(i=>`<li><span>${i.nome} <span style="color:var(--ink-soft)">(${i.codigo})</span></span><span>${i.quantidade}×</span></li>`).join('');
+    const caixasHtml = r.caixas.map((c,idx)=>{
+      const conteudoStr = c.conteudo.map(ci=>`${ci.nome} (${ci.qtd}×)`).join(', ');
+      return `<li><span>Volume ${idx+1} — ${c.caixaNome} <span style="color:var(--ink-soft)">(${c.dims} cm)</span></span><span></span></li>
+        <li style="border-top:none;padding-top:0;padding-bottom:8px;"><span style="color:var(--ink-soft);font-size:11.5px;">${conteudoStr}</span></li>`;
+    }).join('');
+    const semCaixaHtml = r.semCaixa && r.semCaixa.length>0
+      ? `<div class="alert" style="margin-top:10px;">Sem caixa no momento do cálculo: ${r.semCaixa.map(s=>`${s.nome} (${s.qtd}×)`).join(', ')}</div>`
+      : '';
+
+    card.innerHTML = `
+      <div class="tag-title">${r.cliente || 'Cliente não informado'}</div>
+      <div class="tag-dims">Pedido: ${r.pedido || '—'} · ${formatarData(r.timestamp)} · ${r.totalVolumes} volume(s)</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin:10px 0 4px;">Itens da nota</div>
+      <ul>${itensHtml}</ul>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin:12px 0 4px;">Caixas usadas</div>
+      <ul>${caixasHtml}</ul>
+      ${semCaixaHtml}
+    `;
+    lista.appendChild(card);
+  });
+}
+
+function renderResultado(caixasAbertas, semCaixa){
+  const area = document.getElementById('resultadoArea');
+  area.innerHTML = '';
+
+  const resumo = document.createElement('div');
+  resumo.className = 'result-summary';
+  const contagemPorModelo = {};
+  caixasAbertas.forEach(ab=>{ contagemPorModelo[ab.caixa.nome] = (contagemPorModelo[ab.caixa.nome]||0)+1; });
+  const partes = Object.entries(contagemPorModelo).map(([nome,qtd])=> `${qtd}× ${nome}`).join('  ·  ');
+  resumo.innerHTML = `Total de volumes: <b>${caixasAbertas.length}</b> &nbsp; — &nbsp; ${partes || 'nenhum'}`;
+  area.appendChild(resumo);
+
+  if(semCaixa.length>0){
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert';
+    const nomesUnicos = [...new Set(semCaixa.map(i=>i.nome))];
+    alertDiv.textContent = `Atenção: ${semCaixa.length} unidade(s) não coube(ram) em nenhuma caixa cadastrada (${nomesUnicos.join(', ')}). Cadastre uma caixa maior ou revise as dimensões do item.`;
+    area.appendChild(alertDiv);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'tag-grid';
+  caixasAbertas.forEach((ab,idx)=>{
+    const boxVol = volume([ab.caixa.comprimento, ab.caixa.largura, ab.caixa.altura]);
+    const pct = Math.min(100, Math.round((ab.usedVolume/boxVol)*100));
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    let itensHtml = '';
+    ab.conteudo.forEach(({item,qtd})=>{
+      itensHtml += `<li><span>${item.nome}</span><span>${qtd}×</span></li>`;
+    });
+    tag.innerHTML = `
+      <div class="tag-title">Volume ${idx+1} — ${ab.caixa.nome}</div>
+      <div class="tag-dims">${ab.caixa.comprimento}×${ab.caixa.largura}×${ab.caixa.altura} cm ${ab.caixa.pesoMax ? '· máx '+ab.caixa.pesoMax+'kg':''}</div>
+      <ul>${itensHtml}</ul>
+      <div class="fill-bar"><div style="width:${pct}%"></div></div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);margin-top:4px;">ocupação estimada: ${pct}%</div>
+    `;
+    grid.appendChild(tag);
+  });
+  area.appendChild(grid);
+}
+
+carregarDados();
+</script>
+</body>
+</html>
